@@ -1,14 +1,7 @@
-# Two-minute demo script
+This project uses the CLINC150 dataset to classify English user messages by intent. It compares four models, displays each prediction and confidence score, and routes uncertain or out-of-scope messages to a human agent.
 
-Keep the recording under 2:00. Read the live model outputs from the app; do not narrate an expected result before it appears.
+I’ll start with an in-scope message: “What is the weather in Seattle?” The table shows the intent and confidence predicted by each model, along with the team that would receive the request.
 
-| Time | Show and say |
-|---|---|
-| 0:00–0:15 | “This is an English multi-domain intent router. It predicts a user’s intent, shows confidence, and sends uncertain or out-of-scope messages to a human.” |
-| 0:15–0:40 | In the live app, enter a clear in-scope message from the CLINC150 test examples. Read the predicted intent, confidence, and routed team. Mention the small-talk rule if using a greeting. |
-| 0:40–1:05 | Enter: “how much has the dow changed today”. Show that the INT8 model’s top label is `spending_history` at 24.12% confidence and the current 45% rule routes it to a human agent. This is a real held-out OOS failure caught by the confidence fallback. |
-| 1:05–1:30 | Show the architecture slide: input, normalization/rules, four predictors, confidence/OOS check, team or human fallback. |
-| 1:30–1:50 | Show the measured results table and say the INT8 model reached 84.85% accuracy, 42.00% OOS recall, and 6.63 ms mean latency on the Apple M2 CPU. |
-| 1:50–2:00 | “The quantized model was smaller and faster in this run. OOS handling is still limited, and a next step is to tune the fallback threshold on validation data.” |
+Now I’ll try an out-of-scope message: “How much has the Dow changed today?” In our measured run, the INT8 model assigned it to spending_history with 24.12% confidence. Since this is below the 45% routing threshold, the app sends it to a human agent.
 
-Record the app live with at least two inputs. Replace the first message if it is too slow or the result needs explanation. Upload as unlisted YouTube or anyone-with-link Drive, then add the link to the cover and submission form.
+On the Apple M2 CPU, the INT8 model reached 84.85% accuracy and 42.00% out-of-scope recall. Its measured size was 133.31 megabytes, with a mean latency of 6.63 milliseconds per message. Out-of-scope detection remains a limitation, so the next step is to tune the routing threshold using validation data.
