@@ -16,8 +16,8 @@ def load_predictors():
     return Predictors()
 
 
-if not (ARTIFACTS / "results.json").exists():
-    st.info("Train the model ladder first with `python -m src.train`; then restart this app.")
+if not (ARTIFACTS / "transformer_int8" / "model_int8.pt").exists():
+    st.info("Download the trained artifacts first with `python -m src.download_artifacts`, or train them with `python -m src.train`; then restart this app.")
     st.stop()
 
 try:

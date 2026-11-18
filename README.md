@@ -1,14 +1,27 @@
 # English Multi-Domain Intent Router
 
-SWE015 homework project: an interactive English-language assistant that classifies a message into a CLINC150 intent, shows confidence, routes it to the relevant domain team, and sends low-confidence or out-of-scope messages to a human agent. We chose the multi-domain assistant framing so that the application matches the instructor-suggested CLINC150 corpus.
+SWE015 homework project (Use Case 2: Customer Support Ticket Router, adapted to English and CLINC150). An interactive Streamlit app that classifies a message into a CLINC150 intent, shows confidence, routes it to the relevant domain team, and sends low-confidence or out-of-scope messages to a human agent. The predictions of four models are shown side by side, and the quantized Transformer (DistilBERT INT8) is one of the live predictors.
 
-## Dataset
+- Presentation video: <ADD VIDEO LINK>
+- Measured results: [RESULTS.md](RESULTS.md)
+- Dataset source, license, citation: [DATA.md](DATA.md)
 
-We are following the assignment's CLINC150 suggestion. It is English and includes out-of-scope examples. See [DATA.md](DATA.md) for source, license, and citation. This project uses the corpus as a multi-domain assistant benchmark, not as an appliance-support dataset.
+This project uses CLINC150 as a multi-domain assistant benchmark, not as an appliance-support dataset. The mapping from CLINC150 domains to demo teams is in `src/routing.py`.
+
+## Model ladder
+
+| # | Model | Area |
+|---|-------|------|
+| 1 | TF-IDF (word 1-2 grams) + logistic regression | Classical NLP baseline |
+| 2 | FastText mean vectors + feedforward network (SGD, backpropagation) | Neural network |
+| 3 | Fine-tuned DistilBERT sequence classifier | Transformer |
+| 4 | DistilBERT with dynamic INT8 quantization of `Linear` layers | Efficient model |
+
+All four are evaluated on the same official CLINC150 test split (5,500 messages, 1,000 out-of-scope).
 
 ## Setup
 
-Python 3.13 is recommended for the currently resolved ARM Mac package wheels.
+Python 3.13 is recommended (tested on an Apple M2; other 3.10+ versions should work).
 
 ```bash
 python3.13 -m venv .venv
@@ -16,44 +29,51 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m pip install -r requirements.txt
 ```
 
-## Download and prepare the data
+## Quick start (single run command)
+
+Trained model files are not stored in this repository (they are large). They are hosted on Hugging Face Hub and downloaded automatically:
 
 ```bash
-python -m src.data
+python -m src.download_artifacts && streamlit run app.py
 ```
 
-This downloads the official full CLINC150 JSON and writes `data/processed/{train,dev,test}.jsonl`. Original split boundaries and out-of-scope labels are preserved. Data files are excluded from Git.
+The first command downloads the trained artifacts (about 450 MB) into `artifacts/`; the second starts the app at http://localhost:8501.
 
-## Train and measure the model ladder
+Note on the INT8 model: dynamic quantization uses the `qnnpack` backend when available and falls back to `fbgemm`. The downloaded INT8 weights were produced with `qnnpack`. If loading fails on your machine, rebuild the INT8 model from the downloaded FP32 checkpoint with:
 
 ```bash
-python -m src.train
+python -m src.quantize_eval
 ```
 
-This trains the TF-IDF/logistic-regression baseline, FastText + SGD feedforward network, fine-tuned DistilBERT, and a dynamic INT8 version of the fine-tuned Transformer. It evaluates them on the same test split and writes `artifacts/results.json` with accuracy, out-of-scope recall, model size, and mean single-message latency over at least 100 timed runs. The hardware description is recorded with the measurements.
+## Reproduce everything from scratch (optional)
 
-Training downloads the DistilBERT checkpoint from Hugging Face on first use. Training can take a while, especially on CPU.
-
-## Run the interactive demo
+Use this path instead of the quick start to retrain and re-measure all four models. Training DistilBERT can take a long time on CPU.
 
 ```bash
+python -m src.data    # downloads official CLINC150, writes data/processed/{train,dev,test}.jsonl
+python -m src.train   # trains all four models, writes artifacts/ and artifacts/results.json
 streamlit run app.py
 ```
 
-The app displays all four model predictions and routes low-confidence/out-of-scope messages to a human agent. The mapping from CLINC150 domains to demo teams is documented in `src/routing.py`.
+`src.data` keeps the original split boundaries and out-of-scope labels. `src.train` evaluates every model on the same test split and records accuracy, out-of-scope recall, model size, and mean single-message latency over 100 timed runs, together with a description of the hardware. DistilBERT weights are downloaded from Hugging Face on first use.
 
-## Project checklist
+`src.quantize_eval` re-quantizes an already fine-tuned checkpoint and repeats the shared evaluation without retraining.
 
-- [x] Chosen the instructor-suggested English dataset
-- [x] Added official data preparation and citations
-- [x] Added regex normalization, model-code extraction, product-name correction, small-talk reply, and human fallback helpers
-- [x] TF-IDF + logistic regression baseline implementation
-- [x] FastText embeddings + feedforward neural network trained with SGD/backpropagation
-- [x] DistilBERT fine-tuning implementation
-- [x] Dynamic INT8 quantization and quantized-model inference implementation
-- [x] Shared test-set evaluation and 100-run latency measurement implementation
-- [x] Streamlit application implementation
-- [x] Download official data and Transformer weights, train, and measure all four models
-- [ ] Adjust routing threshold on validation results; prepare slides and narrated demo
+## Repository layout
 
-The slide plan is in [PRESENTATION_OUTLINE.md](PRESENTATION_OUTLINE.md), measured values are summarized in [RESULTS.md](RESULTS.md), and the two-minute demo script is in [DEMO_SCRIPT.md](DEMO_SCRIPT.md).
+```
+app.py                 Streamlit application
+src/data.py            CLINC150 download and split preparation
+src/preprocess.py      regex normalization, model-code extraction, edit-distance term correction
+src/routing.py         domain-to-team mapping, small-talk rules, 45% confidence fallback
+src/models.py          the four predictors used by the app
+src/train.py           training, quantization, shared evaluation
+src/quantize_eval.py   re-quantize and re-evaluate an existing checkpoint
+src/download_artifacts.py   fetch trained artifacts from Hugging Face Hub
+```
+
+## Limitations
+
+- Out-of-scope recall is low for all four models; the strongest model still accepts many unknown messages as in-scope.
+- The 45% fallback threshold has not been tuned on validation data.
+- The product-name lexicon is a small technique demonstration and is not part of CLINC150.
